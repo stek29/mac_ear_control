@@ -20,6 +20,7 @@
 @implementation AppDelegate {
     NSStatusItem * statusItem;
     DDHidAppleMikey * mCurrentMikey;
+    NSTimer * clicksTimer;
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification {
@@ -136,6 +137,28 @@ static void Handle_UsbDetectionCallback2(void *inContext, IOReturn inResult, voi
 
 @implementation AppDelegate (DDHidAppleMikeyDelegate)
 
+- (void) timerFired: (NSTimer *) fired_by
+{
+    int clicks = [(NSNumber *)[fired_by userInfo] intValue];
+
+    switch (clicks) {
+        case 2:
+            NSLog(@"10.12.4 Next");
+            [MediaKey send:NX_KEYTYPE_FAST];
+            break;
+
+        case 3:
+            NSLog(@"10.12.4 Previous");
+            [MediaKey send:NX_KEYTYPE_PLAY];
+            [MediaKey send:NX_KEYTYPE_REWIND];
+            break;
+
+        default:
+            NSLog(@"Invalid click count: %d", clicks);
+            break;
+    }
+}
+
 - (void) ddhidAppleMikey:(DDHidAppleMikey *)mikey press:(unsigned)usageId upOrDown:(BOOL)upOrDown
 {
     if (upOrDown == TRUE) {
@@ -164,6 +187,23 @@ static void Handle_UsbDetectionCallback2(void *inContext, IOReturn inResult, voi
             case kHIDUsage_GD_SystemMenuDown:
                 NSLog(@"sound down");
                 [MediaKey send:NX_KEYTYPE_SOUND_DOWN];
+                break;
+            case kHIDUsage_Csmr_PlayOrPause:
+                NSLog(@"10.12.4 Play/Pause");
+
+                int count = 0;
+                if (clicksTimer != nil && [clicksTimer isValid]) {
+                    count = [(NSNumber *)[clicksTimer userInfo] intValue];
+                    [clicksTimer invalidate];
+                }
+                count++;
+
+                clicksTimer = [NSTimer
+                         scheduledTimerWithTimeInterval:0.7
+                         target:self
+                         selector:@selector(timerFired:)
+                         userInfo:(id)[NSNumber numberWithInt:count]
+                         repeats:NO];
                 break;
             default:
                 NSLog(@"Unknown key press seen %d", usageId);
